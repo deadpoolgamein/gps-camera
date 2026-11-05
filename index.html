@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>GPS Map Camera Pro Studio</title>
-  <!-- Leaflet CSS for interactive draggable pin & real satellite tiles -->
+  <title>GPS Map Camera Official Studio</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
@@ -43,20 +42,20 @@
     <video id="videoPreview" autoplay playsinline></video>
     <button id="snapBtn" class="btn btn-primary" style="display: none; width: 100%; margin-bottom: 10px;" onclick="snapCamera()">📸 Photo Click Karein</button>
 
-    <label style="color: #38bdf8; font-weight: bold;">👇 Map Pin Move Karein (Draggable Red Pin):</label>
+    <label style="color: #38bdf8; font-weight: bold;">👇 Draggable Map Pin (Pin ko khinch kar kahin bhi rakhein):</label>
     <div id="interactiveMap"></div>
 
     <label>City & State (Indian Flag Auto):</label>
-    <input type="text" id="inLoc" value="Jhanjheri, Punjab, India">
+    <input type="text" id="inLoc" value="Kharar, Punjab, India">
 
     <label>Street / Plus Code Address:</label>
-    <input type="text" id="inSubLoc" value="Mjj4+7qf, Jhanjheri, Punjab 140307, India">
+    <input type="text" id="inSubLoc" value="Sh12a, Kharar, Punjab 140301, India">
 
     <label>Latitude & Longitude:</label>
-    <input type="text" id="inCoords" value="Lat 30.680935° Long 76.607397°">
+    <input type="text" id="inCoords" value="Lat 30.738888° Long 76.662292°">
 
     <label>Date & Time Stamp:</label>
-    <input type="text" id="inTime" value="Thursday, 05/11/2026 07:58 PM GMT +05:30">
+    <input type="text" id="inTime" value="Thursday, 05/11/2026 08:04 PM GMT +05:30">
 
     <div class="row">
       <button class="btn btn-primary" onclick="setLiveCurrentTime()">⏰ Set Abhi Ka Time</button>
@@ -84,10 +83,10 @@
     let loadedImg = null;
     let videoStream = null;
     let activeDate = new Date();
-    let currentLat = 30.680935;
-    let currentLon = 76.607397;
-    let liveSatImg = new Image();
-    liveSatImg.crossOrigin = "anonymous";
+    let currentLat = 30.738888;
+    let currentLon = 76.662292;
+    let satTileLoaded = false;
+    let satTileImg = new Image();
 
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d');
@@ -104,7 +103,7 @@
       </svg>
     `);
 
-    // 1. Interactive Leaflet Map Setup with Real Satellite Layer
+    // 1. Draggable Leaflet Interactive Map
     const map = L.map('interactiveMap', { zoomControl: true }).setView([currentLat, currentLon], 16);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 18,
@@ -113,61 +112,66 @@
 
     const marker = L.marker([currentLat, currentLon], { draggable: true }).addTo(map);
 
-    marker.on('dragend', async function(e) {
-      const position = marker.getLatLng();
-      updateCoordinatesAndLocation(position.lat, position.lng);
+    marker.on('dragend', function() {
+      const pos = marker.getLatLng();
+      updatePositionAndGeocode(pos.lat, pos.lng);
     });
 
     map.on('click', function(e) {
       marker.setLatLng(e.latlng);
-      updateCoordinatesAndLocation(e.latlng.lat, e.latlng.lng);
+      updatePositionAndGeocode(e.latlng.lat, e.latlng.lng);
     });
 
-    async function updateCoordinatesAndLocation(lat, lon) {
+    async function updatePositionAndGeocode(lat, lon) {
       currentLat = lat;
       currentLon = lon;
       const latStr = lat.toFixed(6);
       const lonStr = lon.toFixed(6);
       document.getElementById('inCoords').value = `Lat ${latStr}° Long ${lonStr}°`;
-      fetchLiveSatelliteTile(currentLat, currentLon);
+      fetchStaticSatelliteImage(lat, lon);
 
       try {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latStr}&lon=${lonStr}&format=json`);
         const data = await res.json();
         if (data && data.address) {
           const a = data.address;
-          const city = a.city || a.town || a.village || a.suburb || "Mohali";
+          const city = a.city || a.town || a.village || a.suburb || "Kharar";
           const state = a.state || "Punjab";
           const country = a.country || "India";
           const road = a.road || "Sh12a";
-          const post = a.postcode || "140307";
+          const post = a.postcode || "140301";
           document.getElementById('inLoc').value = `${city}, ${state}, ${country}`;
           document.getElementById('inSubLoc').value = `${road}, ${city}, ${state} ${post}, ${country}`;
         }
-      } catch(err){}
+      } catch(e){}
       drawStamp();
     }
 
-    // Real Live Satellite Aerial Imagery Loader
+    // 2. Real Satellite Tile Fetcher
     function lon2tile(lon, zoom) { return (Math.floor((lon + 180) / 360 * Math.pow(2, zoom))); }
     function lat2tile(lat, zoom) { return (Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom))); }
 
-    function fetchLiveSatelliteTile(lat, lon) {
+    function fetchStaticSatelliteImage(lat, lon) {
       const zoom = 16;
       const x = lon2tile(lon, zoom);
       const y = lat2tile(lat, zoom);
-      const tileUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y}/${x}`;
       
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.onload = () => {
-        liveSatImg = img;
+      img.onload = function() {
+        satTileImg = img;
+        satTileLoaded = true;
         drawStamp();
       };
-      img.src = tileUrl;
+      img.onerror = function() {
+        satTileLoaded = false;
+        drawStamp();
+      };
+      // High-resolution Esri World Satellite Imagery server tile
+      img.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y}/${x}`;
     }
 
-    fetchLiveSatelliteTile(currentLat, currentLon);
+    fetchStaticSatelliteImage(currentLat, currentLon);
 
     // Initial placeholder
     const initialImg = new Image();
@@ -195,23 +199,19 @@
     ['inLoc', 'inSubLoc', 'inCoords', 'inTime'].forEach(id => {
       document.getElementById(id).addEventListener('input', () => {
         if (id === 'inCoords') {
-          parseCoordsInput();
+          const val = document.getElementById('inCoords').value;
+          const match = val.match(/Lat\s*([\d\.\-]+).*?Long\s*([\d\.\-]+)/i);
+          if (match) {
+            currentLat = parseFloat(match[1]);
+            currentLon = parseFloat(match[2]);
+            map.setView([currentLat, currentLon], 16);
+            marker.setLatLng([currentLat, currentLon]);
+            fetchStaticSatelliteImage(currentLat, currentLon);
+          }
         }
         drawStamp();
       });
     });
-
-    function parseCoordsInput() {
-      const val = document.getElementById('inCoords').value;
-      const match = val.match(/Lat\s*([\d\.\-]+).*?Long\s*([\d\.\-]+)/i);
-      if (match) {
-        currentLat = parseFloat(match[1]);
-        currentLon = parseFloat(match[2]);
-        map.setView([currentLat, currentLon], 16);
-        marker.setLatLng([currentLat, currentLon]);
-        fetchLiveSatelliteTile(currentLat, currentLon);
-      }
-    }
 
     async function startCamera() {
       const vid = document.getElementById('videoPreview');
@@ -250,7 +250,7 @@
         const lon = pos.coords.longitude;
         map.setView([lat, lon], 16);
         marker.setLatLng([lat, lon]);
-        updateCoordinatesAndLocation(lat, lon);
+        updatePositionAndGeocode(lat, lon);
       }, () => alert("GPS location permission allow karein."));
     }
 
@@ -286,11 +286,11 @@
       drawStamp();
     }
 
-    // Exact 1:1 GPS Map Camera Icon from User Attachment
-    function drawExactAttachedLogo(ix, iy, s) {
+    // 3. Exact Play Store Logo matching the user attachment
+    function drawExactPlayStoreLogo(ix, iy, s) {
       ctx.save();
       
-      // Squircle Frame
+      // Outer Squircle
       ctx.beginPath();
       ctx.roundRect(ix, iy, s, s, s * 0.22);
       ctx.clip();
@@ -298,95 +298,96 @@
       // Sky Blue Gradient
       const skyGrad = ctx.createLinearGradient(ix, iy, ix, iy + s);
       skyGrad.addColorStop(0, '#38bdf8');
-      skyGrad.addColorStop(0.65, '#7dd3fc');
+      skyGrad.addColorStop(0.60, '#7dd3fc');
       skyGrad.addColorStop(0.85, '#bae6fd');
       ctx.fillStyle = skyGrad;
       ctx.fillRect(ix, iy, s, s);
 
-      // Globe Base (Green/Blue Curves)
+      // Globe Grass & Ocean Bottom Curves
       ctx.fillStyle = "#22c55e";
       ctx.beginPath();
-      ctx.arc(ix + s/2, iy + s * 1.35, s * 0.65, 0, Math.PI * 2);
+      ctx.arc(ix + s * 0.50, iy + s * 1.35, s * 0.65, 0, Math.PI * 2);
       ctx.fill();
+
       ctx.fillStyle = "#3b82f6";
       ctx.beginPath();
-      ctx.arc(ix + s*0.25, iy + s * 0.88, s * 0.16, 0, Math.PI * 2);
+      ctx.arc(ix + s * 0.25, iy + s * 0.90, s * 0.16, 0, Math.PI * 2);
       ctx.fill();
 
-      // 4 Corner Viewfinder White Brackets
+      // 4 White Viewfinder Brackets
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = Math.max(1.5, s * 0.045);
+      ctx.lineWidth = Math.max(1.5, s * 0.05);
       ctx.lineCap = "round";
-      const bPad = s * 0.12;
-      const bLen = s * 0.15;
+      const pad = s * 0.11;
+      const arm = s * 0.16;
 
       ctx.beginPath();
-      ctx.moveTo(ix + bPad, iy + bPad + bLen);
-      ctx.lineTo(ix + bPad, iy + bPad);
-      ctx.lineTo(ix + bPad + bLen, iy + bPad);
+      ctx.moveTo(ix + pad, iy + pad + arm);
+      ctx.lineTo(ix + pad, iy + pad);
+      ctx.lineTo(ix + pad + arm, iy + pad);
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.moveTo(ix + s - bPad - bLen, iy + bPad);
-      ctx.lineTo(ix + s - bPad, iy + bPad);
-      ctx.lineTo(ix + s - bPad, iy + bPad + bLen);
+      ctx.moveTo(ix + s - pad - arm, iy + pad);
+      ctx.lineTo(ix + s - pad, iy + pad);
+      ctx.lineTo(ix + s - pad, iy + pad + arm);
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.moveTo(ix + bPad, iy + s - bPad - bLen);
-      ctx.lineTo(ix + bPad, iy + s - bPad);
-      ctx.lineTo(ix + bPad + bLen, iy + s - bPad);
+      ctx.moveTo(ix + pad, iy + s - pad - arm);
+      ctx.lineTo(ix + pad, iy + s - pad);
+      ctx.lineTo(ix + pad + arm, iy + s - pad);
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.moveTo(ix + s - bPad - bLen, iy + s - bPad);
-      ctx.lineTo(ix + s - bPad, iy + s - bPad);
-      ctx.lineTo(ix + s - bPad, iy + s - bPad - bLen);
+      ctx.moveTo(ix + s - pad - arm, iy + s - pad);
+      ctx.lineTo(ix + s - pad, iy + s - pad);
+      ctx.lineTo(ix + s - pad, iy + s - pad - arm);
       ctx.stroke();
 
-      // Golden Yellow Lens Ring
+      // Golden Aperture Ring
       const cx = ix + s / 2;
       const cy = iy + s * 0.44;
-      const outerR = s * 0.28;
+      const r = s * 0.28;
 
       ctx.beginPath();
-      ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fillStyle = "#facc15";
       ctx.fill();
 
-      // Inner Dark Lens
+      // Inner Lens Body
       ctx.beginPath();
-      ctx.arc(cx, cy, outerR * 0.80, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r * 0.80, 0, Math.PI * 2);
       ctx.fillStyle = "#1e293b";
       ctx.fill();
 
       ctx.beginPath();
-      ctx.arc(cx, cy, outerR * 0.48, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r * 0.48, 0, Math.PI * 2);
       ctx.fillStyle = "#090d16";
       ctx.fill();
 
-      // Glare dot
+      // Lens Glare Spot
       ctx.beginPath();
-      ctx.arc(cx + outerR * 0.35, cy - outerR * 0.35, outerR * 0.22, 0, Math.PI * 2);
+      ctx.arc(cx + r * 0.35, cy - r * 0.35, r * 0.22, 0, Math.PI * 2);
       ctx.fillStyle = "#ffffff";
       ctx.fill();
 
-      // Mini-Banner inside logo
-      const miniW = s * 0.72;
-      const miniH = s * 0.16;
-      const miniX = ix + (s - miniW) / 2;
-      const miniY = iy + s * 0.72;
+      // Mini-Banner Overlay
+      const mW = s * 0.74;
+      const mH = s * 0.16;
+      const mX = ix + (s - mW) / 2;
+      const mY = iy + s * 0.72;
 
-      ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
-      ctx.fillRect(miniX, miniY, miniW, miniH);
+      ctx.fillStyle = "rgba(0, 0, 0, 0.90)";
+      ctx.fillRect(mX, mY, mW, mH);
 
       ctx.fillStyle = "#86efac";
-      ctx.fillRect(miniX + 1.5, miniY + 1.5, miniH - 3, miniH - 3);
+      ctx.fillRect(mX + 1.5, mY + 1.5, mH - 3, mH - 3);
 
       ctx.fillStyle = "#f97316";
-      ctx.fillRect(miniX + miniH + 2, miniY + 2.5, miniW - miniH - 5, 2.5);
+      ctx.fillRect(mX + mH + 2, mY + 2.5, mW - mH - 5, 2.5);
       ctx.fillStyle = "#ffffff";
-      ctx.fillRect(miniX + miniH + 2, miniY + 6, miniW - miniH - 5, 2);
+      ctx.fillRect(mX + mH + 2, mY + 6, mW - mH - 5, 2);
 
       ctx.restore();
     }
@@ -398,7 +399,7 @@
       canvas.width = w;
       canvas.height = h;
 
-      // 1. Base Photo
+      // 1. Base Image
       ctx.clearRect(0, 0, w, h);
       ctx.drawImage(loadedImg, 0, 0, w, h);
 
@@ -409,7 +410,7 @@
       ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
       ctx.fillRect(0, bannerY, w, bannerH);
 
-      // 3. Satellite Map Box
+      // 3. Real Satellite Map Box
       const mapPad = Math.round(bannerH * 0.07);
       const mapSize = bannerH - (mapPad * 2);
       const mapX = mapPad;
@@ -419,9 +420,11 @@
       ctx.beginPath();
       ctx.rect(mapX, mapY, mapSize, mapSize);
       ctx.clip();
-      if (liveSatImg && liveSatImg.complete && liveSatImg.naturalWidth > 0) {
-        ctx.drawImage(liveSatImg, mapX, mapY, mapSize, mapSize);
+      
+      if (satTileLoaded && satTileImg.naturalWidth > 0) {
+        ctx.drawImage(satTileImg, mapX, mapY, mapSize, mapSize);
       } else {
+        // Fallback natural green aerial gradient if network is slow
         const g = ctx.createLinearGradient(mapX, mapY, mapX + mapSize, mapY + mapSize);
         g.addColorStop(0, '#535b49');
         g.addColorStop(1, '#333b2e');
@@ -452,7 +455,7 @@
       ctx.fillStyle = "#b91c1c";
       ctx.fill();
 
-      // Google Logo text
+      // Google Logo
       ctx.fillStyle = "#ffffff";
       ctx.font = `bold ${Math.round(mapSize * 0.22)}px -apple-system, sans-serif`;
       ctx.fillText("Google", mapX + (mapSize * 0.08), mapY + mapSize - (mapSize * 0.10));
@@ -485,7 +488,7 @@
       ctx.font = `400 ${Math.round(fs * 0.92)}px -apple-system, sans-serif`;
       ctx.fillText("Note : Captured by GPS Map Camera", textX, bannerY + (bannerH * 0.96));
 
-      // 5. Official App Badge (Top Right)
+      // 5. Official App Badge with Attached Logo (Top Right)
       const badgeH = Math.round(bannerH * 0.17);
       const logoSize = Math.round(badgeH * 0.88);
       
@@ -502,7 +505,8 @@
       ctx.roundRect(pillX, pillY, pillW, pillH, 5);
       ctx.fill();
 
-      drawExactAttachedLogo(pillX + Math.round(badgeH * 0.08), pillY + Math.round((pillH - logoSize) / 2), logoSize);
+      // Draw Exact Play Store Logo
+      drawExactPlayStoreLogo(pillX + Math.round(badgeH * 0.08), pillY + Math.round((pillH - logoSize) / 2), logoSize);
 
       ctx.fillStyle = "#ffffff";
       ctx.fillText(badgeText, pillX + logoSize + Math.round(badgeH * 0.18), pillY + (pillH * 0.70));
