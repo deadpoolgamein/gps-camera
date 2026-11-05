@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GPS Map Camera Studio</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Roboto, -apple-system, sans-serif; }
+    body { background: #0c0f14; color: #f1f5f9; padding: 12px; }
+    .header { text-align: center; margin-bottom: 12px; }
+    .header h1 { font-size: 18px; color: #38bdf8; }
+    .panel { background: #181d26; border: 1px solid #283141; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+    .row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .btn { flex: 1; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; text-align: center; }
+    .btn-blue { background: #2563eb; color: #fff; }
+    .btn-green { background: #16a34a; color: #fff; width: 100%; padding: 14px; font-size: 15px; margin-top: 10px; }
+    .btn-dark { background: #334155; color: #fff; }
+    label { font-size: 11px; color: #94a3b8; display: block; margin-top: 6px; margin-bottom: 2px; }
+    input { width: 100%; background: #0b0d11; border: 1px solid #334155; color: #fff; padding: 8px; border-radius: 6px; font-size: 13px; margin-bottom: 6px; }
+    #canvas-wrap { width: 100%; border-radius: 8px; overflow: hidden; background: #000; margin-top: 10px; border: 1px solid #283141; }
+    canvas { width: 100%; display: block; height: auto; }
+    #videoPreview { width: 100%; display: none; border-radius: 8px; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>📍 GPS Map Camera Official Stamp</h1>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <label class="btn btn-blue" style="cursor: pointer; margin: 0;">
+        📁 Upload Photo
+        <input type="file" id="uploadInput" accept="image/*" style="display: none;">
+      </label>
+      <button class="btn btn-dark" onclick="startCamera()">📷 Live Camera</button>
+      <button class="btn btn-dark" onclick="captureLiveGPS()">📡 Live GPS</button>
+    </div>
+
+    <video id="videoPreview" autoplay playsinline></video>
+    <button id="snapBtn" class="btn btn-blue" style="display: none; width: 100%; margin-bottom: 10px;" onclick="snapCamera()">📸 Click Photo</button>
+
+    <label>City & Country (Flag auto aayega):</label>
+    <input type="text" id="inLoc" value="Jhanjheri, Punjab, India">
+
+    <label>Street / Plus Code:</label>
+    <input type="text" id="inSubLoc" value="Sh12a, Jhanjheri, Punjab 140307, India">
+
+    <label>Lat & Long Coordinates:</label>
+    <input type="text" id="inCoords" value="Lat 30.680929° Long 76.606903°">
+
+    <label>Date & Time Stamp:</label>
+    <input type="text" id="inTime" value="Tuesday, 03/11/2026 05:17 PM GMT +05:30">
+
+    <div class="row">
+      <button class="btn btn-dark" onclick="setLiveCurrentTime()">⏰ Set Abhi Ka Time</button>
+      <button class="btn btn-dark" onclick="adjustMinutes(-15)">-15m</button>
+      <button class="btn btn-dark" onclick="adjustMinutes(15)">+15m</button>
+    </div>
+
+    <button class="btn btn-green" onclick="downloadImage()">💾 Download Clean Stamped Photo</button>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="mainCanvas"></canvas>
+  </div>
+
+  <script>
+    let loadedImg = null;
+    let videoStream = null;
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // High quality satellite map canvas crop
+    const satCanvas = document.createElement('canvas');
+    satCanvas.width = 300; satCanvas.height = 300;
+    const sctx = satCanvas.getContext('2d');
+    const grad = sctx.createLinearGradient(0,0,300,300);
+    grad.addColorStop(0, '#556052');
+    grad.addColorStop(0.5, '#727e6a');
+    grad.addColorStop(1, '#3a4436');
+    sctx.fillStyle = grad;
+    sctx.fillRect(0,0,300,300);
+    // Draw buildings & roads
+    sctx.fillStyle = "#8a9682";
+    sctx.fillRect(70, 40, 80, 70);
+    sctx.fillRect(160, 140, 110, 80);
+    sctx.strokeStyle = "#a3af9c";
+    sctx.lineWidth = 14;
+    sctx.beginPath();
+    sctx.moveTo(0, 120); sctx.lineTo(300, 110);
+    sctx.moveTo(120, 0); sctx.lineTo(130, 300);
+    sctx.stroke();
+
+    // Indian Flag
+    const flagSvg = new Image();
+    flagSvg.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="90" height="60" viewBox="0 0 900 600">
+        <rect width="900" height="200" fill="#FF9933"/>
+        <rect width="900" height="200" y="200" fill="#FFFFFF"/>
+        <rect width="900" height="200" y="400" fill="#138808"/>
+        <circle cx="450" cy="300" r="80" fill="none" stroke="#000080" stroke-width="14"/>
+        <circle cx="450" cy="300" r="16" fill="#000080"/>
+      </svg>
+    `);
+
+    // Top Right Camera Badge
+    const badgeSvg = new Image();
+    badgeSvg.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="180" height="32" viewBox="0 0 180 32">
+        <rect width="180" height="32" fill="rgba(0,0,0,0.7)" rx="4"/>
+        <rect x="5" y="5" width="22" height="22" fill="#0284c7" rx="3"/>
+        <circle cx="16" cy="16" r="6" fill="#facc15"/>
+        <text x="34" y="21" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">GPS Map Camera</text>
+      </svg>
+    `);
+
+    // Set demo picture initially
+    const placeholder = new Image();
+    placeholder.crossOrigin = "anonymous";
+    placeholder.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+        <rect width="900" height="1200" fill="#1e293b"/>
+        <text x="50%" y="48%" fill="#94a3b8" font-size="36" font-family="sans-serif" text-anchor="middle">Photo Upload karein ya Live Camera kholein</text>
+      </svg>
+    `);
+    placeholder.onload = () => { loadedImg = placeholder; drawStamp(); };
+
+    document.getElementById('uploadInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const img = new Image();
+        img.onload = () => { loadedImg = img; drawStamp(); };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    ['inLoc', 'inSubLoc', 'inCoords', 'inTime'].forEach(id => {
+      document.getElementById(id).addEventListener('input', drawStamp);
+    });
+
+    async function startCamera() {
+      const vid = document.getElementById('videoPreview');
+      const snap = document.getElementById('snapBtn');
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        vid.srcObject = videoStream;
+        vid.style.display = 'block';
+        snap.style.display = 'block';
+      } catch (err) {
+        alert("Camera permission allow karein.");
+      }
+    }
+
+    function snapCamera() {
+      const vid = document.getElementById('videoPreview');
+      const tmp = document.createElement('canvas');
+      tmp.width = vid.videoWidth || 1080;
+      tmp.height = vid.videoHeight || 1440;
+      tmp.getContext('2d').drawImage(vid, 0, 0);
+      const img = new Image();
+      img.onload = () => {
+        loadedImg = img;
+        drawStamp();
+        if (videoStream) videoStream.getTracks().forEach(t => t.stop());
+        vid.style.display = 'none';
+        document.getElementById('snapBtn').style.display = 'none';
+      };
+      img.src = tmp.toDataURL('image/jpeg');
+    }
+
+    function captureLiveGPS() {
+      if (!navigator.geolocation) return alert("Geolocation not supported");
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lon = pos.coords.longitude.toFixed(6);
+        document.getElementById('inCoords').value = `Lat ${lat}° Long ${lon}°`;
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+          const data = await res.json();
+          if (data && data.address) {
+            const a = data.address;
+            const city = a.city || a.town || a.village || a.suburb || "Mohali";
+            const state = a.state || "Punjab";
+            const country = a.country || "India";
+            const road = a.road || "Main Road";
+            const post = a.postcode || "140307";
+            document.getElementById('inLoc').value = `${city}, ${state}, ${country}`;
+            document.getElementById('inSubLoc').value = `${road}, ${city}, ${state} ${post}, ${country}`;
+          }
+        } catch(e){}
+        drawStamp();
+      }, () => alert("Location permission allow karein."));
+    }
+
+    function setLiveCurrentTime() {
+      const now = new Date();
+      const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const dayName = days[now.getDay()];
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yyyy = now.getFullYear();
+      let hours = now.getHours();
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12 || 12;
+      const hh = String(hours).padStart(2, '0');
+      document.getElementById('inTime').value = `${dayName}, ${dd}/${mm}/${yyyy} ${hh}:${mins} ${ampm} GMT +05:30`;
+      drawStamp();
+    }
+
+    function adjustMinutes(offset) {
+      setLiveCurrentTime();
+    }
+
+    function drawStamp() {
+      if (!loadedImg) return;
+      const w = loadedImg.naturalWidth || loadedImg.width;
+      const h = loadedImg.naturalHeight || loadedImg.height;
+      canvas.width = w;
+      canvas.height = h;
+
+      // 1. Fresh Background Draw (Clears any ghost text completely)
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(loadedImg, 0, 0, w, h);
+
+      // 2. Translucent Bottom Banner
+      const bannerH = Math.round(h * 0.175);
+      const bannerY = h - bannerH;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.72)";
+      ctx.fillRect(0, bannerY, w, bannerH);
+
+      // 3. Satellite Map Box
+      const mapPad = Math.round(bannerH * 0.07);
+      const mapSize = bannerH - (mapPad * 2);
+      const mapX = mapPad;
+      const mapY = bannerY + mapPad;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(mapX, mapY, mapSize, mapSize);
+      ctx.clip();
+      ctx.drawImage(satCanvas, mapX, mapY, mapSize, mapSize);
+      ctx.restore();
+
+      // Red GPS Pin
+      const pinX = mapX + (mapSize / 2);
+      const pinY = mapY + (mapSize * 0.44);
+      const pinR = mapSize * 0.13;
+      ctx.beginPath();
+      ctx.arc(pinX, pinY, pinR, 0, Math.PI * 2);
+      ctx.fillStyle = "#ef4444";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(pinX - pinR, pinY);
+      ctx.lineTo(pinX + pinR, pinY);
+      ctx.lineTo(pinX, pinY + (pinR * 1.6));
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(pinX, pinY, pinR * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = "#7f1d1d";
+      ctx.fill();
+
+      // Google Logo
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `bold ${Math.round(mapSize * 0.22)}px -apple-system, sans-serif`;
+      ctx.fillText("Google", mapX + (mapSize * 0.08), mapY + mapSize - (mapSize * 0.10));
+
+      // 4. Texts
+      const textX = mapX + mapSize + Math.round(w * 0.025);
+      const fs = Math.round(bannerH * 0.155);
+
+      // City / Heading
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `bold ${Math.round(fs * 1.25)}px -apple-system, sans-serif`;
+      const title = document.getElementById('inLoc').value;
+      ctx.fillText(title, textX, bannerY + (bannerH * 0.23));
+
+      // Indian Flag Draw
+      const titleW = ctx.measureText(title).width;
+      const flagH = Math.round(fs * 0.95);
+      const flagW = Math.round(flagH * 1.45);
+      ctx.drawImage(flagSvg, textX + titleW + 12, bannerY + (bannerH * 0.23) - flagH + 2, flagW, flagH);
+
+      // Info Rows
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = `400 ${fs}px -apple-system, sans-serif`;
+      ctx.fillText(document.getElementById('inSubLoc').value, textX, bannerY + (bannerH * 0.43));
+      ctx.fillText(document.getElementById('inCoords').value, textX, bannerY + (bannerH * 0.62));
+      ctx.fillText(document.getElementById('inTime').value, textX, bannerY + (bannerH * 0.80));
+
+      // Note Row
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = `400 ${Math.round(fs * 0.92)}px -apple-system, sans-serif`;
+      ctx.fillText("Note : Captured by GPS Map Camera", textX, bannerY + (bannerH * 0.96));
+
+      // Badge Top Right
+      const bH = Math.round(bannerH * 0.18);
+      const bW = Math.round(bH * 5.6);
+      ctx.drawImage(badgeSvg, w - bW - mapPad, bannerY - bH - 4, bW, bH);
+    }
+
+    function downloadImage() {
+      if (!loadedImg) return alert("Photo load karein!");
+      const link = document.createElement('a');
+      link.download = 'GPS_Camera_' + Date.now() + '.jpg';
+      link.href = canvas.toDataURL('image/jpeg', 0.98);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
