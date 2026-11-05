@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>GPS Map Camera Pro Studio</title>
+  <title>GPS Map Camera Official Studio</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: Roboto, -apple-system, sans-serif; }
     body { background: #0b0f17; color: #e2e8f0; padding: 12px; }
@@ -39,17 +39,17 @@
     <video id="videoPreview" autoplay playsinline></video>
     <button id="snapBtn" class="btn btn-primary" style="display: none; width: 100%; margin-bottom: 10px;" onclick="snapCamera()">📸 Photo Click Karein</button>
 
-    <label>City & State (Country & Indian Flag Auto):</label>
+    <label>City & State (Indian Flag Auto):</label>
     <input type="text" id="inLoc" value="Jhanjheri, Punjab, India">
 
     <label>Street / Plus Code Address:</label>
-    <input type="text" id="inSubLoc" value="Mjj4+7qf, Jhanjheri, Punjab 140307, India">
+    <input type="text" id="inSubLoc" value="Sh12a, Jhanjheri, Punjab 140307, India">
 
     <label>Latitude & Longitude:</label>
-    <input type="text" id="inCoords" value="Lat 30.680935° Long 76.607397°">
+    <input type="text" id="inCoords" value="Lat 30.680929° Long 76.606903°">
 
     <label>Date & Time Stamp:</label>
-    <input type="text" id="inTime" value="Tuesday, 03/11/2026 06:14 PM GMT +05:30">
+    <input type="text" id="inTime" value="Tuesday, 03/11/2026 05:17 PM GMT +05:30">
 
     <div class="row">
       <button class="btn btn-primary" onclick="setLiveCurrentTime()">⏰ Set Abhi Ka Time</button>
@@ -59,23 +59,12 @@
       <button class="btn btn-dark" onclick="adjustHours(1)">+1 Hr</button>
     </div>
 
-    <div class="row">
-      <div style="flex: 1;">
-        <label>Map Style Layout:</label>
-        <select id="mapStyle" onchange="drawStamp()">
-          <option value="satellite">Satellite Aerial View (Same as Photo)</option>
-          <option value="normal">Standard Terrain View</option>
-        </select>
-      </div>
-      <div style="flex: 1;">
-        <label>Stamp Background Opacity:</label>
-        <select id="bgOpacity" onchange="drawStamp()">
-          <option value="0.72">Default 72% Translucent</option>
-          <option value="1.0">100% Solid Dark (Purana Stamp Chhupane Ke Liye)</option>
-          <option value="0.85">85% High Contrast</option>
-        </select>
-      </div>
-    </div>
+    <label>Stamp Background Opacity:</label>
+    <select id="bgOpacity" onchange="drawStamp()">
+      <option value="0.75">Default 75% Translucent (Original)</option>
+      <option value="1.0">100% Solid Dark (Purana Stamp Chhupane Ke Liye)</option>
+      <option value="0.88">88% High Contrast</option>
+    </select>
 
     <button class="btn btn-green" onclick="downloadImage()">💾 Download Clean Photo (HD)</button>
   </div>
@@ -91,22 +80,7 @@
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d');
 
-    // 1. Exact 1:1 GPS Map Camera Top-Right Badge (Yellow lens + Cyan Ring)
-    const appBadge = new Image();
-    appBadge.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
-      <svg xmlns="http://www.w3.org/2000/svg" width="230" height="36" viewBox="0 0 230 36">
-        <rect x="0" y="0" width="230" height="36" rx="5" fill="rgba(0, 0, 0, 0.65)"/>
-        <rect x="6" y="5" width="26" height="26" rx="4" fill="#0284c7"/>
-        <rect x="9" y="8" width="20" height="20" rx="3" fill="#0f172a"/>
-        <circle cx="19" cy="18" r="7" fill="#0284c7"/>
-        <circle cx="19" cy="18" r="4.5" fill="#facc15"/>
-        <circle cx="17.5" cy="16.5" r="1.5" fill="#ffffff"/>
-        <circle cx="28" cy="10" r="1.8" fill="#22c55e"/>
-        <text x="38" y="24" fill="#ffffff" font-size="15" font-family="-apple-system, Roboto, sans-serif" font-weight="bold">GPS Map Camera</text>
-      </svg>
-    `);
-
-    // 2. Official Indian Flag SVG
+    // Indian Flag SVG
     const flagSvg = new Image();
     flagSvg.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" width="90" height="60" viewBox="0 0 900 600">
@@ -118,47 +92,42 @@
       </svg>
     `);
 
-    // 3. Exact Satellite Map Canvas Renderer matching the uploaded reference
+    // High detail realistic satellite ground image
     const satCanvas = document.createElement('canvas');
-    satCanvas.width = 320; satCanvas.height = 320;
+    satCanvas.width = 400; satCanvas.height = 400;
     const sctx = satCanvas.getContext('2d');
     
-    function renderMapTexture() {
-      const mode = document.getElementById('mapStyle') ? document.getElementById('mapStyle').value : 'satellite';
-      if (mode === 'satellite') {
-        const bgGrad = sctx.createLinearGradient(0,0,320,320);
-        bgGrad.addColorStop(0, '#4a5348');
-        bgGrad.addColorStop(0.5, '#6b7762');
-        bgGrad.addColorStop(1, '#343b32');
-        sctx.fillStyle = bgGrad;
-        sctx.fillRect(0,0,320,320);
-        // Roofs & Compounds
-        sctx.fillStyle = "#8a9680";
-        sctx.fillRect(80, 50, 95, 75);
-        sctx.fillStyle = "#2d3540";
-        sctx.fillRect(95, 145, 120, 85);
-        // Road Tracks
-        sctx.strokeStyle = "#a1ad96";
-        sctx.lineWidth = 14;
-        sctx.beginPath();
-        sctx.moveTo(0, 130); sctx.lineTo(320, 125);
-        sctx.moveTo(135, 0); sctx.lineTo(145, 320);
-        sctx.stroke();
-      } else {
-        sctx.fillStyle = "#e5e3df";
-        sctx.fillRect(0,0,320,320);
-        sctx.strokeStyle = "#ffffff";
-        sctx.lineWidth = 16;
-        sctx.beginPath();
-        sctx.moveTo(0, 140); sctx.lineTo(320, 140);
-        sctx.moveTo(140, 0); sctx.lineTo(140, 320);
-        sctx.stroke();
-        sctx.strokeStyle = "#fcd34d";
-        sctx.lineWidth = 8;
-        sctx.stroke();
-      }
-    }
-    renderMapTexture();
+    // Natural satellite field base
+    const grad = sctx.createLinearGradient(0, 0, 400, 400);
+    grad.addColorStop(0, '#535b49');
+    grad.addColorStop(0.35, '#6a755d');
+    grad.addColorStop(0.7, '#485040');
+    grad.addColorStop(1, '#333b2e');
+    sctx.fillStyle = grad;
+    sctx.fillRect(0, 0, 400, 400);
+
+    // Trees / Ground patches
+    sctx.fillStyle = "#3f4736";
+    sctx.beginPath();
+    sctx.arc(80, 290, 60, 0, Math.PI * 2);
+    sctx.arc(140, 310, 50, 0, Math.PI * 2);
+    sctx.fill();
+
+    // Road / Track
+    sctx.strokeStyle = "#8b9480";
+    sctx.lineWidth = 18;
+    sctx.beginPath();
+    sctx.moveTo(0, 160); sctx.lineTo(400, 155);
+    sctx.moveTo(170, 0); sctx.lineTo(175, 400);
+    sctx.stroke();
+
+    // Concrete compounds & roofs
+    sctx.fillStyle = "#9ba592";
+    sctx.fillRect(75, 55, 80, 65);
+    sctx.fillStyle = "#293444"; // Blue tinted roof
+    sctx.fillRect(95, 175, 125, 95);
+    sctx.fillStyle = "#7c8574";
+    sctx.fillRect(205, 60, 130, 80);
 
     // Placeholder image
     const initialImg = new Image();
@@ -273,20 +242,83 @@
       drawStamp();
     }
 
+    // Function to draw official crisp GPS Map Camera Top-Right Badge
+    function drawOfficialAppBadge(x, y, h) {
+      const iconSize = Math.round(h * 0.92);
+      ctx.save();
+      
+      // Pill container
+      ctx.font = `bold ${Math.round(h * 0.52)}px -apple-system, Roboto, sans-serif`;
+      const txt = "GPS Map Camera";
+      const txtW = ctx.measureText(txt).width;
+      const pillW = iconSize + txtW + Math.round(h * 0.6);
+      const pillH = h;
+      const pillX = x - pillW;
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.60)";
+      ctx.beginPath();
+      ctx.roundRect(pillX, y, pillW, pillH, 5);
+      ctx.fill();
+
+      // App Icon Squircle
+      const ix = pillX + Math.round(h * 0.12);
+      const iy = y + Math.round((pillH - iconSize) / 2);
+      
+      // Blue base
+      ctx.fillStyle = "#0284c7";
+      ctx.beginPath();
+      ctx.roundRect(ix, iy, iconSize, iconSize, iconSize * 0.22);
+      ctx.fill();
+
+      // Inner camera dark lens body
+      ctx.fillStyle = "#0f172a";
+      ctx.beginPath();
+      ctx.roundRect(ix + iconSize*0.12, iy + iconSize*0.12, iconSize*0.76, iconSize*0.76, iconSize*0.18);
+      ctx.fill();
+
+      // Cyan outer lens ring
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.arc(ix + iconSize/2, iy + iconSize/2, iconSize*0.28, 0, Math.PI*2);
+      ctx.fill();
+
+      // Yellow aperture
+      ctx.fillStyle = "#eab308";
+      ctx.beginPath();
+      ctx.arc(ix + iconSize/2, iy + iconSize/2, iconSize*0.19, 0, Math.PI*2);
+      ctx.fill();
+
+      // Glare dot
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(ix + iconSize*0.42, iy + iconSize*0.42, iconSize*0.06, 0, Math.PI*2);
+      ctx.fill();
+
+      // Green sensor dot
+      ctx.fillStyle = "#22c55e";
+      ctx.beginPath();
+      ctx.arc(ix + iconSize*0.74, iy + iconSize*0.26, iconSize*0.06, 0, Math.PI*2);
+      ctx.fill();
+
+      // Text "GPS Map Camera"
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(txt, ix + iconSize + Math.round(h * 0.18), y + (pillH * 0.70));
+
+      ctx.restore();
+    }
+
     function drawStamp() {
       if (!loadedImg) return;
-      renderMapTexture();
-
       const w = loadedImg.naturalWidth || loadedImg.width;
       const h = loadedImg.naturalHeight || loadedImg.height;
       canvas.width = w;
       canvas.height = h;
 
-      // 1. Draw Fresh Image
+      // 1. Draw Clean Base Photo
       ctx.clearRect(0, 0, w, h);
       ctx.drawImage(loadedImg, 0, 0, w, h);
 
-      // 2. Official Banner Strip
+      // 2. Official Bottom Banner Strip
       const bannerH = Math.round(h * 0.178);
       const bannerY = h - bannerH;
       const opacity = document.getElementById('bgOpacity').value;
@@ -306,7 +338,7 @@
       ctx.drawImage(satCanvas, mapX, mapY, mapSize, mapSize);
       ctx.restore();
 
-      // Official Red Pin with Shadow
+      // Official Red Pin with 3D drop look
       const pinX = mapX + (mapSize / 2);
       const pinY = mapY + (mapSize * 0.44);
       const pinR = mapSize * 0.13;
@@ -323,7 +355,6 @@
       ctx.closePath();
       ctx.fill();
 
-      // Pin center dark dot
       ctx.beginPath();
       ctx.arc(pinX, pinY, pinR * 0.38, 0, Math.PI * 2);
       ctx.fillStyle = "#b91c1c";
@@ -363,9 +394,8 @@
       ctx.fillText("Note : Captured by GPS Map Camera", textX, bannerY + (bannerH * 0.96));
 
       // 5. Official App Badge (Top Right above banner)
-      const bH = Math.round(bannerH * 0.185);
-      const bW = Math.round(bH * 5.8);
-      ctx.drawImage(appBadge, w - bW - mapPad, bannerY - bH - 5, bW, bH);
+      const badgeH = Math.round(bannerH * 0.17);
+      drawOfficialAppBadge(w - mapPad, bannerY - badgeH - 6, badgeH);
     }
 
     function downloadImage() {
