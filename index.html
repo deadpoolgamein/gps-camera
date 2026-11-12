@@ -17,13 +17,15 @@
     .btn-green { background: #16a34a; color: #fff; width: 100%; padding: 14px; font-size: 15px; margin-top: 10px; }
     .btn-sub { background: #1f293d; color: #93c5fd; border: 1px solid #3b82f6; }
     .btn-cgc { background: #7c3aed; color: #fff; }
+    .btn-warn { background: #d97706; color: #fff; }
     .btn-dark { background: #334155; color: #f8fafc; }
     label { font-size: 11px; color: #94a3b8; display: block; margin-top: 6px; margin-bottom: 2px; }
     input, select { width: 100%; background: #0a0d14; border: 1px solid #334155; color: #fff; padding: 8px 10px; border-radius: 6px; font-size: 13px; margin-bottom: 6px; }
     #interactiveMap { width: 100%; height: 210px; border-radius: 8px; margin: 8px 0 12px 0; border: 1px solid #38bdf8; }
     #canvas-wrap { width: 100%; border-radius: 10px; overflow: hidden; background: #000; margin-top: 10px; border: 1px solid #334155; }
     canvas { width: 100%; display: block; height: auto; }
-    #videoPreview { width: 100%; display: none; border-radius: 8px; margin-bottom: 10px; }
+    #videoPreview { width: 100%; display: none; border-radius: 8px; margin-bottom: 8px; background: #000; }
+    #camControls { display: none; gap: 8px; margin-bottom: 10px; }
   </style>
 </head>
 <body>
@@ -36,7 +38,13 @@
         📁 Gallery Photo
         <input type="file" id="uploadInput" accept="image/*" style="display: none;">
       </label>
-      <button class="btn btn-sub" onclick="startCamera()">📷 Live Camera</button>
+      <button class="btn btn-sub" onclick="startCamera('environment')">📷 Live Camera</button>
+    </div>
+
+    <video id="videoPreview" autoplay playsinline></video>
+    <div id="camControls" class="row">
+      <button class="btn btn-primary" onclick="snapCamera()">📸 Photo Click Karein</button>
+      <button class="btn btn-warn" onclick="toggleCameraFacing()">🔄 Flip (Front/Back)</button>
     </div>
 
     <div class="row">
@@ -44,17 +52,14 @@
       <button class="btn btn-sub" onclick="captureLiveGPS()">📡 Live GPS</button>
     </div>
 
-    <video id="videoPreview" autoplay playsinline></video>
-    <button id="snapBtn" class="btn btn-primary" style="display: none; width: 100%; margin-bottom: 10px;" onclick="snapCamera()">📸 Photo Click Karein</button>
-
     <label style="color: #38bdf8; font-weight: bold;">👇 Draggable Map Pin (Pin ko move karke location adjust karein):</label>
     <div id="interactiveMap"></div>
 
     <label>City & State (Indian Flag Auto):</label>
-    <input type="text" id="inLoc" value="Sahibzada Ajit Singh Nagar, Punjab, India">
+    <input type="text" id="inLoc" value="Jhanjheri, Punjab, India">
 
     <label>Street / Campus Address:</label>
-    <input type="text" id="inSubLoc" value="Jhanjheri, State Highway 12A, Sahibzada Ajit Singh Nagar, Punjab 140307, India">
+    <input type="text" id="inSubLoc" value="CGC Jhanjheri, Sh12a, Jhanjheri, Punjab 140307, India">
 
     <label>Latitude & Longitude:</label>
     <input type="text" id="inCoords" value="Lat 30.680935° Long 76.607397°">
@@ -88,11 +93,12 @@
     // Permanent CGC University (Jhanjheri Campus) Coordinates
     const CGC_LAT = 30.680935;
     const CGC_LON = 76.607397;
-    const CGC_LOC = "Sahibzada Ajit Singh Nagar, Punjab, India";
+    const CGC_LOC = "Jhanjheri, Punjab, India";
     const CGC_ADDR = "CGC Jhanjheri, Sh12a, Jhanjheri, Punjab 140307, India";
 
     let loadedImg = null;
     let videoStream = null;
+    let currentFacingMode = 'environment'; // 'environment' (back) or 'user' (front)
     let activeDate = new Date();
     let currentLat = CGC_LAT;
     let currentLon = CGC_LON;
@@ -291,34 +297,60 @@
       });
     });
 
-    async function startCamera() {
+    async function startCamera(mode) {
+      if (mode) currentFacingMode = mode;
       const vid = document.getElementById('videoPreview');
-      const snap = document.getElementById('snapBtn');
-      try {
-        videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        vid.srcObject = videoStream;
-        vid.style.display = 'block';
-        snap.style.display = 'block';
-      } catch (err) {
-        alert("Camera permission allow karein.");
+      const controls = document.getElementById('camControls');
+      
+      // Stop existing tracks before switching
+      if (videoStream) {
+        videoStream.getTracks().forEach(t => t.stop());
       }
+
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: { ideal: currentFacingMode } } 
+        });
+        vid.srcObject = videoStream;
+        // Mirror preview visually for front camera
+        vid.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
+        vid.style.display = 'block';
+        controls.style.display = 'flex';
+      } catch (err) {
+        alert("Camera access nahi mila. Permission check karein.");
+      }
+    }
+
+    function toggleCameraFacing() {
+      currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+      startCamera(currentFacingMode);
     }
 
     function snapCamera() {
       const vid = document.getElementById('videoPreview');
       const tmp = document.createElement('canvas');
-      tmp.width = vid.videoWidth || 1080;
-      tmp.height = vid.videoHeight || 1440;
-      tmp.getContext('2d').drawImage(vid, 0, 0);
+      const vw = vid.videoWidth || 1080;
+      const vh = vid.videoHeight || 1440;
+      tmp.width = vw;
+      tmp.height = vh;
+      const tctx = tmp.getContext('2d');
+
+      // Flip image horizontally if captured from front camera so text/face matches mirror view
+      if (currentFacingMode === 'user') {
+        tctx.translate(vw, 0);
+        tctx.scale(-1, 1);
+      }
+      tctx.drawImage(vid, 0, 0, vw, vh);
+
       const img = new Image();
       img.onload = () => {
         loadedImg = img;
         drawStamp();
         if (videoStream) videoStream.getTracks().forEach(t => t.stop());
         vid.style.display = 'none';
-        document.getElementById('snapBtn').style.display = 'none';
+        document.getElementById('camControls').style.display = 'none';
       };
-      img.src = tmp.toDataURL('image/jpeg');
+      img.src = tmp.toDataURL('image/jpeg', 0.96);
     }
 
     function captureLiveGPS() {
