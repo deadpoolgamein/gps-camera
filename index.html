@@ -12,10 +12,11 @@
     .panel { background: #161e2e; border: 1px solid #293548; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
     h2 { font-size: 16px; color: #38bdf8; text-align: center; margin-bottom: 12px; }
     .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-    .btn { flex: 1; min-width: 90px; padding: 10px 6px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; text-align: center; }
+    .btn { flex: 1; min-width: 85px; padding: 10px 6px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; text-align: center; }
     .btn-primary { background: #2563eb; color: #fff; }
     .btn-green { background: #16a34a; color: #fff; width: 100%; padding: 14px; font-size: 15px; margin-top: 10px; }
     .btn-sub { background: #1f293d; color: #93c5fd; border: 1px solid #3b82f6; }
+    .btn-cgc { background: #7c3aed; color: #fff; }
     .btn-dark { background: #334155; color: #f8fafc; }
     label { font-size: 11px; color: #94a3b8; display: block; margin-top: 6px; margin-bottom: 2px; }
     input, select { width: 100%; background: #0a0d14; border: 1px solid #334155; color: #fff; padding: 8px 10px; border-radius: 6px; font-size: 13px; margin-bottom: 6px; }
@@ -36,26 +37,30 @@
         <input type="file" id="uploadInput" accept="image/*" style="display: none;">
       </label>
       <button class="btn btn-sub" onclick="startCamera()">📷 Live Camera</button>
+    </div>
+
+    <div class="row">
+      <button class="btn btn-cgc" onclick="setCGCLocation()">🏫 CGC University (Permanent)</button>
       <button class="btn btn-sub" onclick="captureLiveGPS()">📡 Live GPS</button>
     </div>
 
     <video id="videoPreview" autoplay playsinline></video>
     <button id="snapBtn" class="btn btn-primary" style="display: none; width: 100%; margin-bottom: 10px;" onclick="snapCamera()">📸 Photo Click Karein</button>
 
-    <label style="color: #38bdf8; font-weight: bold;">👇 Draggable Map Pin (Pin ko khinch kar kahin bhi rakhein):</label>
+    <label style="color: #38bdf8; font-weight: bold;">👇 Draggable Map Pin (Pin ko move karke location adjust karein):</label>
     <div id="interactiveMap"></div>
 
     <label>City & State (Indian Flag Auto):</label>
-    <input type="text" id="inLoc" value="Kharar, Punjab, India">
+    <input type="text" id="inLoc" value="Jhanjheri, Punjab, India">
 
-    <label>Street / Plus Code Address:</label>
-    <input type="text" id="inSubLoc" value="Sh12a, Jhanjheri, Punjab 140307, India">
+    <label>Street / Campus Address:</label>
+    <input type="text" id="inSubLoc" value="CGC Jhanjheri, State Highway 12A, Sahibzada Ajit Singh Nagar, Punjab 140307, India">
 
     <label>Latitude & Longitude:</label>
-    <input type="text" id="inCoords" value="Lat 30.681193° Long 76.606733°">
+    <input type="text" id="inCoords" value="Lat 30.680935° Long 76.607397°">
 
     <label>Date & Time Stamp:</label>
-    <input type="text" id="inTime" value="Thursday, 05/11/2026 08:04 PM GMT +05:30">
+    <input type="text" id="inTime" value="">
 
     <div class="row">
       <button class="btn btn-primary" onclick="setLiveCurrentTime()">⏰ Set Abhi Ka Time</button>
@@ -80,16 +85,60 @@
   </div>
 
   <script>
+    // Permanent CGC University (Jhanjheri Campus) Coordinates
+    const CGC_LAT = 30.680935;
+    const CGC_LON = 76.607397;
+    const CGC_LOC = "Jhanjheri, Punjab, India";
+    const CGC_ADDR = "CGC Jhanjheri, Sh12a, Jhanjheri, Punjab 140307, India";
+
     let loadedImg = null;
     let videoStream = null;
     let activeDate = new Date();
-    let currentLat = 30.680935;
-    let currentLon = 76.607397;
-    let satTileLoaded = false;
-    let satTileImg = new Image();
+    let currentLat = CGC_LAT;
+    let currentLon = CGC_LON;
+    let satMapCanvas = document.createElement('canvas');
+    satMapCanvas.width = 400; satMapCanvas.height = 400;
 
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d');
+
+    // Exact Play Store Logo
+    const exactLogoImg = new Image();
+    exactLogoImg.crossOrigin = "anonymous";
+    exactLogoImg.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+        <defs>
+          <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#38bdf8"/>
+            <stop offset="55%" stop-color="#7dd3fc"/>
+            <stop offset="85%" stop-color="#bae6fd"/>
+          </linearGradient>
+          <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#fde047"/>
+            <stop offset="100%" stop-color="#eab308"/>
+          </linearGradient>
+        </defs>
+        <rect width="128" height="128" rx="28" fill="url(#skyGrad)"/>
+        <path d="M 0 102 C 32 88, 96 88, 128 102 L 128 128 L 0 128 Z" fill="#22c55e"/>
+        <path d="M 24 100 C 40 92, 70 94, 82 108 L 24 116 Z" fill="#3b82f6"/>
+        <g stroke="#ffffff" stroke-width="6" stroke-linecap="round" fill="none">
+          <path d="M 18 36 L 18 20 L 34 20" />
+          <path d="M 110 36 L 110 20 L 94 20" />
+          <path d="M 18 92 L 18 108 L 34 108" />
+          <path d="M 110 92 L 110 108 L 94 108" />
+        </g>
+        <circle cx="64" cy="56" r="36" fill="url(#ringGrad)"/>
+        <circle cx="64" cy="56" r="28" fill="#1e293b"/>
+        <circle cx="64" cy="56" r="16" fill="#090d16"/>
+        <circle cx="76" cy="44" r="7.5" fill="#ffffff"/>
+        <rect x="20" y="86" width="88" height="22" rx="3" fill="#090d16"/>
+        <rect x="22" y="88" width="18" height="18" rx="2" fill="#86efac"/>
+        <rect x="44" y="90" width="58" height="4" fill="#f97316"/>
+        <rect x="44" y="96" width="58" height="3" fill="#ffffff"/>
+        <rect x="44" y="101" width="58" height="3" fill="#22c55e"/>
+      </svg>
+    `);
+    exactLogoImg.onload = () => { drawStamp(); };
 
     // Indian Flag SVG
     const flagSvg = new Image();
@@ -103,7 +152,7 @@
       </svg>
     `);
 
-    // 1. Draggable Leaflet Interactive Map
+    // Interactive Map Setup
     const map = L.map('interactiveMap', { zoomControl: true }).setView([currentLat, currentLon], 16);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 18,
@@ -122,58 +171,87 @@
       updatePositionAndGeocode(e.latlng.lat, e.latlng.lng);
     });
 
+    function setCGCLocation() {
+      currentLat = CGC_LAT;
+      currentLon = CGC_LON;
+      map.setView([CGC_LAT, CGC_LON], 16);
+      marker.setLatLng([CGC_LAT, CGC_LON]);
+      document.getElementById('inLoc').value = CGC_LOC;
+      document.getElementById('inSubLoc').value = CGC_ADDR;
+      document.getElementById('inCoords').value = `Lat ${CGC_LAT.toFixed(6)}° Long ${CGC_LON.toFixed(6)}°`;
+      fetchRealSatelliteTile(CGC_LAT, CGC_LON);
+      drawStamp();
+    }
+
     async function updatePositionAndGeocode(lat, lon) {
       currentLat = lat;
       currentLon = lon;
       const latStr = lat.toFixed(6);
       const lonStr = lon.toFixed(6);
       document.getElementById('inCoords').value = `Lat ${latStr}° Long ${lonStr}°`;
-      fetchStaticSatelliteImage(lat, lon);
+      fetchRealSatelliteTile(lat, lon);
 
       try {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latStr}&lon=${lonStr}&format=json`);
         const data = await res.json();
         if (data && data.address) {
           const a = data.address;
-          const city = a.city || a.town || a.village || a.suburb || "Kharar";
+          const city = a.city || a.town || a.village || a.suburb || "Jhanjheri";
           const state = a.state || "Punjab";
           const country = a.country || "India";
           const road = a.road || "Sh12a";
-          const post = a.postcode || "140301";
+          const post = a.postcode || "140307";
           document.getElementById('inLoc').value = `${city}, ${state}, ${country}`;
           document.getElementById('inSubLoc').value = `${road}, ${city}, ${state} ${post}, ${country}`;
         }
-      } catch(e){}
+      } catch(err){}
       drawStamp();
     }
 
-    // 2. Real Satellite Tile Fetcher
     function lon2tile(lon, zoom) { return (Math.floor((lon + 180) / 360 * Math.pow(2, zoom))); }
     function lat2tile(lat, zoom) { return (Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom))); }
 
-    function fetchStaticSatelliteImage(lat, lon) {
+    function fetchRealSatelliteTile(lat, lon) {
       const zoom = 16;
       const x = lon2tile(lon, zoom);
       const y = lat2tile(lat, zoom);
       
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = function() {
-        satTileImg = img;
-        satTileLoaded = true;
+      const sctx = satMapCanvas.getContext('2d');
+      const tileImg = new Image();
+      tileImg.crossOrigin = "anonymous";
+      
+      tileImg.onload = function() {
+        sctx.clearRect(0, 0, 400, 400);
+        sctx.drawImage(tileImg, 0, 0, 400, 400);
         drawStamp();
       };
-      img.onerror = function() {
-        satTileLoaded = false;
+      tileImg.onerror = function() {
+        const g = sctx.createLinearGradient(0, 0, 400, 400);
+        g.addColorStop(0, '#4e5645');
+        g.addColorStop(0.5, '#68745c');
+        g.addColorStop(1, '#323a2d');
+        sctx.fillStyle = g;
+        sctx.fillRect(0, 0, 400, 400);
+        sctx.fillStyle = "#8f9984";
+        sctx.fillRect(80, 50, 90, 70);
+        sctx.fillStyle = "#2c3644";
+        sctx.fillRect(100, 170, 130, 90);
+        sctx.strokeStyle = "#9baa8e";
+        sctx.lineWidth = 16;
+        sctx.beginPath();
+        sctx.moveTo(0, 150); sctx.lineTo(400, 145);
+        sctx.moveTo(155, 0); sctx.lineTo(165, 400);
+        sctx.stroke();
         drawStamp();
       };
-      // High-resolution Esri World Satellite Imagery server tile
-      img.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y}/${x}`;
+      tileImg.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y}/${x}`;
     }
 
-    fetchStaticSatelliteImage(currentLat, currentLon);
+    // Initialize with current time and permanent CGC Location
+    document.getElementById('inTime').value = formatCustomDate(activeDate);
+    setCGCLocation();
 
-    // Initial placeholder
+    // Initial placeholder image
     const initialImg = new Image();
     initialImg.crossOrigin = "anonymous";
     initialImg.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
@@ -206,7 +284,7 @@
             currentLon = parseFloat(match[2]);
             map.setView([currentLat, currentLon], 16);
             marker.setLatLng([currentLat, currentLon]);
-            fetchStaticSatelliteImage(currentLat, currentLon);
+            fetchRealSatelliteTile(currentLat, currentLon);
           }
         }
         drawStamp();
@@ -286,112 +364,6 @@
       drawStamp();
     }
 
-    // 3. Exact Play Store Logo matching the user attachment
-    function drawExactPlayStoreLogo(ix, iy, s) {
-      ctx.save();
-      
-      // Outer Squircle
-      ctx.beginPath();
-      ctx.roundRect(ix, iy, s, s, s * 0.22);
-      ctx.clip();
-
-      // Sky Blue Gradient
-      const skyGrad = ctx.createLinearGradient(ix, iy, ix, iy + s);
-      skyGrad.addColorStop(0, '#38bdf8');
-      skyGrad.addColorStop(0.60, '#7dd3fc');
-      skyGrad.addColorStop(0.85, '#bae6fd');
-      ctx.fillStyle = skyGrad;
-      ctx.fillRect(ix, iy, s, s);
-
-      // Globe Grass & Ocean Bottom Curves
-      ctx.fillStyle = "#22c55e";
-      ctx.beginPath();
-      ctx.arc(ix + s * 0.50, iy + s * 1.35, s * 0.65, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = "#3b82f6";
-      ctx.beginPath();
-      ctx.arc(ix + s * 0.25, iy + s * 0.90, s * 0.16, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 4 White Viewfinder Brackets
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = Math.max(1.5, s * 0.05);
-      ctx.lineCap = "round";
-      const pad = s * 0.11;
-      const arm = s * 0.16;
-
-      ctx.beginPath();
-      ctx.moveTo(ix + pad, iy + pad + arm);
-      ctx.lineTo(ix + pad, iy + pad);
-      ctx.lineTo(ix + pad + arm, iy + pad);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(ix + s - pad - arm, iy + pad);
-      ctx.lineTo(ix + s - pad, iy + pad);
-      ctx.lineTo(ix + s - pad, iy + pad + arm);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(ix + pad, iy + s - pad - arm);
-      ctx.lineTo(ix + pad, iy + s - pad);
-      ctx.lineTo(ix + pad + arm, iy + s - pad);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(ix + s - pad - arm, iy + s - pad);
-      ctx.lineTo(ix + s - pad, iy + s - pad);
-      ctx.lineTo(ix + s - pad, iy + s - pad - arm);
-      ctx.stroke();
-
-      // Golden Aperture Ring
-      const cx = ix + s / 2;
-      const cy = iy + s * 0.44;
-      const r = s * 0.28;
-
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = "#facc15";
-      ctx.fill();
-
-      // Inner Lens Body
-      ctx.beginPath();
-      ctx.arc(cx, cy, r * 0.80, 0, Math.PI * 2);
-      ctx.fillStyle = "#1e293b";
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(cx, cy, r * 0.48, 0, Math.PI * 2);
-      ctx.fillStyle = "#090d16";
-      ctx.fill();
-
-      // Lens Glare Spot
-      ctx.beginPath();
-      ctx.arc(cx + r * 0.35, cy - r * 0.35, r * 0.22, 0, Math.PI * 2);
-      ctx.fillStyle = "#ffffff";
-      ctx.fill();
-
-      // Mini-Banner Overlay
-      const mW = s * 0.74;
-      const mH = s * 0.16;
-      const mX = ix + (s - mW) / 2;
-      const mY = iy + s * 0.72;
-
-      ctx.fillStyle = "rgba(0, 0, 0, 0.90)";
-      ctx.fillRect(mX, mY, mW, mH);
-
-      ctx.fillStyle = "#86efac";
-      ctx.fillRect(mX + 1.5, mY + 1.5, mH - 3, mH - 3);
-
-      ctx.fillStyle = "#f97316";
-      ctx.fillRect(mX + mH + 2, mY + 2.5, mW - mH - 5, 2.5);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(mX + mH + 2, mY + 6, mW - mH - 5, 2);
-
-      ctx.restore();
-    }
-
     function drawStamp() {
       if (!loadedImg) return;
       const w = loadedImg.naturalWidth || loadedImg.width;
@@ -399,7 +371,7 @@
       canvas.width = w;
       canvas.height = h;
 
-      // 1. Base Image
+      // 1. Draw Photo
       ctx.clearRect(0, 0, w, h);
       ctx.drawImage(loadedImg, 0, 0, w, h);
 
@@ -410,7 +382,7 @@
       ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
       ctx.fillRect(0, bannerY, w, bannerH);
 
-      // 3. Real Satellite Map Box
+      // 3. Satellite Map Box
       const mapPad = Math.round(bannerH * 0.07);
       const mapSize = bannerH - (mapPad * 2);
       const mapX = mapPad;
@@ -420,20 +392,10 @@
       ctx.beginPath();
       ctx.rect(mapX, mapY, mapSize, mapSize);
       ctx.clip();
-      
-      if (satTileLoaded && satTileImg.naturalWidth > 0) {
-        ctx.drawImage(satTileImg, mapX, mapY, mapSize, mapSize);
-      } else {
-        // Fallback natural green aerial gradient if network is slow
-        const g = ctx.createLinearGradient(mapX, mapY, mapX + mapSize, mapY + mapSize);
-        g.addColorStop(0, '#535b49');
-        g.addColorStop(1, '#333b2e');
-        ctx.fillStyle = g;
-        ctx.fillRect(mapX, mapY, mapSize, mapSize);
-      }
+      ctx.drawImage(satMapCanvas, mapX, mapY, mapSize, mapSize);
       ctx.restore();
 
-      // Red Drop Pin with Shadow
+      // Red Drop Pin
       const pinX = mapX + (mapSize / 2);
       const pinY = mapY + (mapSize * 0.44);
       const pinR = mapSize * 0.13;
@@ -464,7 +426,6 @@
       const textX = mapX + mapSize + Math.round(w * 0.024);
       const fs = Math.round(bannerH * 0.155);
 
-      // Main City / Title
       ctx.fillStyle = "#ffffff";
       ctx.font = `bold ${Math.round(fs * 1.25)}px -apple-system, sans-serif`;
       const title = document.getElementById('inLoc').value;
@@ -488,7 +449,7 @@
       ctx.font = `400 ${Math.round(fs * 0.92)}px -apple-system, sans-serif`;
       ctx.fillText("Note : Captured by GPS Map Camera", textX, bannerY + (bannerH * 0.96));
 
-      // 5. Official App Badge with Attached Logo (Top Right)
+      // 5. Official App Badge
       const badgeH = Math.round(bannerH * 0.17);
       const logoSize = Math.round(badgeH * 0.88);
       
@@ -505,8 +466,9 @@
       ctx.roundRect(pillX, pillY, pillW, pillH, 5);
       ctx.fill();
 
-      // Draw Exact Play Store Logo
-      drawExactPlayStoreLogo(pillX + Math.round(badgeH * 0.08), pillY + Math.round((pillH - logoSize) / 2), logoSize);
+      if (exactLogoImg.complete && exactLogoImg.naturalWidth > 0) {
+        ctx.drawImage(exactLogoImg, pillX + Math.round(badgeH * 0.08), pillY + Math.round((pillH - logoSize) / 2), logoSize, logoSize);
+      }
 
       ctx.fillStyle = "#ffffff";
       ctx.fillText(badgeText, pillX + logoSize + Math.round(badgeH * 0.18), pillY + (pillH * 0.70));
@@ -515,7 +477,7 @@
     function downloadImage() {
       if (!loadedImg) return alert("Photo select karein!");
       const link = document.createElement('a');
-      link.download = 'GPS_Camera_' + Date.now() + '.jpg';
+      link.download = 'GPS_Camera_CGC_' + Date.now() + '.jpg';
       link.href = canvas.toDataURL('image/jpeg', 0.98);
       document.body.appendChild(link);
       link.click();
